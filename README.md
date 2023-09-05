@@ -11,9 +11,11 @@ We also exploit `CRIU` to benchmark the performance of suspending and resuming q
 
 ### Vanilla and TPC-H
 
-First, generating the original tables (`tbl` format) using TPC-H tools, and simply running `duckdb_tpch_data.py` can convert the table files to `parquet` or `csv` format using, for example, the following command,
+First, generating the original tables (`tbl` format) using TPC-H tools, and simply running `duckdb_tpch_data.py` can convert the table files to `parquet` or `csv` format using the following command,
 ```bash
-python3 duckdb_tpch_data.py -d dataset/tpch/tbl-sf1 -f parquet -rgs 10000
+# make sure in the tpch folder
+cd tpch
+python3 duckdb_tpch_data.py -d ../dataset/tpch/tbl-sf1 -f parquet -rgs 10000
 ```
 You can move the converted data to any folder you want.
 
@@ -29,38 +31,58 @@ We have two sets of queries, vanilla and tpc-h, based on tcp-h datasets.
 
 **Vanilla**
 
-We provide some demo queries in `demo/queries` for suspend and resume, which can be triggered by the following commands
+We provide some simple queries in `vanilla/queries` for suspend and resume, which can be triggered by the following commands
 
 ```bash
-# run q1 based on demo.db and the dataset from parquet-tiny using 2 threads
+# make sure in the vanilla folder
+cd vanilla
+# run q1 based on xxx.db and the dataset from parquet-tiny using 2 threads
 python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2
 
 # run q1 with suspension and serialize into single file
-python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl xxx.ratchet 
+python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl yyy.ratchet 
+# run q1 with resumption using a single file
+python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl yyy.ratchet 
+
 # run q1 with suspension and serialize into multiple files (will generate part-*.ratchet in demo folder)
 python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl ./ -psr
-
-# run q1 with resumption using a single file
-python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl xxx.ratchet 
 # run q1 with resumption using multiple files (will use all part-*.ratchet in the demo folder)
 python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl ./ -psr
 ```
 
 **TPC-H**
 
-`ratchet_tpch.py` will trigger the original TPC-H queries from q1 to q22 (stored in queries folder). For example,
+We have tpch queries in `tpch/queries` for suspend and resume. `ratchet_tpch.py` will trigger the original TPC-H queries from q1 to q22. 
+
 ```bash
-python3 ratchet_tpch.py -q q1 -d ../dataset/tpch/parquet-tiny -td 1
+# make sure in the tpch folder
+cd tpch
+# run q1 based on xxx.db and the dataset from parquet-tiny using 2 threads
+python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2
+
+# run q1 with suspension and serialize into single file
+python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl yyy.ratchet 
+# run q1 with resumption using a single file
+python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl yyy.ratchet 
+
+# run q1 with suspension and serialize into multiple files (will generate part-*.ratchet in demo folder)
+python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl ./ -psr
+# run q1 with resumption using multiple files (will use all part-*.ratchet in the demo folder)
+python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl ./ -psr
 ```
+
 The above command will run `q1` in TPC-H based on the data from `../dataset/tpch/parquet-tiny` using `1` thread.
 
 The TPC-H benchmark is mostly used for functionality test.
 
 ### TPC-DS
 
-Generating the original tables (`dat` format) using TPC-DS tools, and simply running `duckdb_tpcds_data.py` can convert the table files to `parquet` or `csv` format using, for example, the following command,
+We have tpch queries in `tpcds/queries` for suspend and resume. `ratchet_tpcds.py` will trigger the original TPC-DS queries from q1 to q99. 
+
+First, generating the original tables (`dat` format) using TPC-DS tools, and simply running `duckdb_tpcds_data.py` can convert the table files to `parquet` or `csv` format using the following command,
 ```bash
-python3 duckdb_tpcds_data.py -d dataset/dat-sf1 -f parquet -rgs 10000
+cd tpcds
+python3 duckdb_tpcds_data.py -d ../dataset/dat-sf1 -f parquet -rgs 10000
 ```
 
 We have several datasets:
@@ -73,3 +95,4 @@ python3 ratchet_tpcds.py -q q1 -d ../dataset/tpcds/parquet-sf1 -td 1
 ```
 The above command will run `q1` in TPC-H based on the data from `../dataset/tpcds/parquet-sf1` using `1` thread.
 
+The suspension and resumption commands can follow the above ones in the Vanilla and TPC-H.    
