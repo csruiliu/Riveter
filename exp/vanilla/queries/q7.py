@@ -1,0 +1,11 @@
+query = """
+SELECT  C_CUSTKEY, O_ORDERKEY, L_LINENUMBER, L_QUANTITY, C_ACCTBAL, O_TOTALPRICE
+FROM  	customer,
+        orders,
+        lineitem
+WHERE	C_CUSTKEY = O_CUSTKEY
+        AND	L_ORDERKEY = O_ORDERKEY
+        AND CAST(O_ORDERDATE AS DATE) >= '1994-01-01'
+        AND C_ACCTBAL > 100
+        AND L_QUANTITY > 5
+"""
