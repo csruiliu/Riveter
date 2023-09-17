@@ -31,42 +31,31 @@ def main():
     ratchet_proc = subprocess.Popen([ratchet_cmd], shell=True)
 
     # Match the keyfile with the C++ program
-    shared_memory_keyfile = "/tmp/shared_memory_key"
-    shared_memory_size = ctypes.sizeof(ctypes.c_int)
+    shm_cost_model_flag_keyfile = "/tmp/shm_cost_model_flag_key"
+    # shared_memory_size = ctypes.sizeof(ctypes.c_uint64)
 
     # Get shared memory key based on the name of keyfile
-    shm_key = ctypes.CDLL(None).ftok(shared_memory_keyfile.encode(), ord('R'))
-    print(f"[Python] shared memory key: {shm_key}")
-
-    # Get shmid based on the shared memory key
-    # shm_id = ctypes.CDLL('libc.so.6').shmget(key, shared_memory_size, 0o666)
-    # print(f"shm_id:{shm_id}")
+    shm_cost_model_flag_key = ctypes.CDLL(None).ftok(shm_cost_model_flag_keyfile.encode(), ord('R'))
+    print(f"[Python] Cost Model Flag Key: {shm_cost_model_flag_key}")
 
     # it seems like time.sleep(1) is necessary
     time.sleep(1)
 
-    shm = sysv_ipc.SharedMemory(shm_key, shared_memory_size, 0 | 0o666)
-    data = ctypes.c_int.from_buffer(shm)
-    shm_variable = data.value
-    print(f"[Python] variable from shared memory: {shm_variable}")
+    shm_cost_model_flag = sysv_ipc.SharedMemory(shm_cost_model_flag_key, ctypes.sizeof(ctypes.c_uint16), 0 | 0o666)
+    cost_model_flag = ctypes.c_int.from_buffer(shm_cost_model_flag).value
 
-    # shm.attach()
-    data_to_send = 42
-    data_bytes = data_to_send.to_bytes(shared_memory_size, byteorder='little')
-    shm.write(data_bytes)
+    print(f"[Python] Cost Model Flag: {cost_model_flag}")
 
-    new_data = ctypes.c_int.from_buffer(shm)
-    new_shm_variable = new_data.value
-    print(f"new shared memory variable: {new_shm_variable}")
+    cost_model_flag = 0
 
-    # data = ctypes.c_int.from_buffer(shm)
-    # shm_variable_new = data.value
+    data_bytes = cost_model_flag.to_bytes(ctypes.sizeof(ctypes.c_uint16), byteorder='little')
+    shm_cost_model_flag.write(data_bytes)
 
     ratchet_proc.wait()
     return_code = ratchet_proc.returncode
     print(f'Ratchet exited with return code: {return_code}')
 
-    shm.detach()
+    shm_cost_model_flag.detach()
     print(f'Detached shared memory variable from Ratchet')
 
     '''
