@@ -6,28 +6,58 @@ import psutil
 import sysv_ipc
 import ctypes
 import numpy as np
+import matplotlib.pyplot as plt
 
 from scipy.optimize import curve_fit
 
+# Constants 
 RAND_WRITE_SPEED = 2500
 RAND_READ_SPEED = 2500
 TERM_PROB = 0.7
 
 
 class ProcLatencyEstimator:
-    def __init__(self, rand_write_speed, rand_read_speed, num_join, input_cardinality, current_time, end_time):
+    def __init__(self,
+                 rand_write_speed,
+                 rand_read_speed,
+                 num_join_array,
+                 input_cardinality_array,
+                 suspension_point_array,
+                 persistence_size_array):
+        # rand r/w speed of hardware storage
         self.rand_write_speed = rand_write_speed
         self.rand_read_speed = rand_read_speed
-        self.num_join = num_join
-        self.input_cardinality = input_cardinality
-        self.current_time = current_time
-        self.end_time = current_time
 
-    def func_persistence_size(self, x1, x2, x3, A, B, C):
-        return 1 / (A * x1 + B * x2 + C * x3 + B)
+        # the data for regression
+        self.num_join_array = num_join_array
+        self.input_cardinality_array = input_cardinality_array
+        self.suspension_point_array = suspension_point_array
+
+        # the results/label for regression
+        self.persistence_size_array = persistence_size_array
+
+        # the param estimated from regression
+        self.param = None
+
+    @staticmethod
+    def func_persistence_size(para, a, b, c, d):
+        result = 1 / (a * para[0] + b * para[1] + c * para[2] + d)
+        return result.ravel()
 
     def fit_curve(self):
-        opt, cov = curve_fit(self.func_persistence_size, x1, x2, x3, y)
+        assert len(self.num_join_array) == len(self.input_cardinality_array) == len(self.suspension_point_array)
+        x = np.column_stack(self.num_join_array, self.input_cardinality_array, self.suspension_point_array)
+        y = self.persistence_size_array
+        self.param, _ = curve_fit(self.func_persistence_size, x, y)
+
+    def persistence_size_estimation(self, num_join, input_card, suspension_point):
+        return num_join * self.param[0] + input_card * self.param[1] + suspension_point * self.param[2]
+
+    def suspend_latency_estimation(self, num_join, input_card, suspension_point):
+        return self.persistence_size_estimation(num_join, input_card, suspension_point) / self.rand_write_speed
+
+    def resume_latency_estimation(self, num_join, input_card, suspension_point):
+        return self.persistence_size_estimation(num_join, input_card, suspension_point) / self.rand_read_speed
 
 
 class PipelineLatencyEstimator:
@@ -83,6 +113,9 @@ def assemble_execution_cmd():
     parser.add_argument("-te", "--termination_end", type=int, action="store",
                         help="indicate the starting point of termination time window")
 
+    parser.add_argument("-tu", "--time_unit", type=int, action="store",
+                        help="indicate the time unit for moving forward when estimating latency for proc-level ")
+
     args = parser.parse_args()
 
     benchmark = args.benchmark
@@ -91,6 +124,7 @@ def assemble_execution_cmd():
     sloc = f"{benchmark}/{args.suspend_location}"
     ts = args.termination_start
     te = args.termination_end
+    time_step = args.time_unit
 
     benchmark_arg = f"{benchmark}/ratchet_{benchmark}.py"
     if args.database is None:
@@ -100,7 +134,7 @@ def assemble_execution_cmd():
 
     ratchet_cmd = f"python3 {benchmark_arg} -q {qid} -d {db_arg} -df {data_folder} -s -sl {sloc}"
 
-    return ratchet_cmd, ts, te
+    return ratchet_cmd, ts, te, time_step
 
 
 def get_shm_variable():
@@ -130,10 +164,6 @@ def detach_shm_variable(*args):
     print(f'Detached shared memory variable from Ratchet')
 
 
-def latency_proc_estimation(num_join, persistence_size):
-    pass
-
-
 def cost_model(pt, end_time, current_time,
                latency_ppl_suspend,
                latency_ppl_resume,
@@ -147,6 +177,11 @@ def cost_model(pt, end_time, current_time,
     return np.where(cost_list == np.min(cost_list))[0]
 
 
+def func_persistence_size(x, a, b, c, d):
+    r = a * x[0] + b * x[1] + c * x[2] + d
+    return r.ravel()
+
+
 def main():
     # Set the output format
     pd.set_option('display.float_format', '{:.1f}'.format)
@@ -155,7 +190,7 @@ def main():
     start_time = time.perf_counter()
 
     # Get the execution command, termination window start and end
-    ratchet_cmd, ts, te = assemble_execution_cmd()
+    ratchet_cmd, ts, te, time_step = assemble_execution_cmd()
 
     # Execute the query through subprocess
     ratchet_proc = subprocess.Popen([ratchet_cmd], shell=True)
@@ -186,10 +221,29 @@ def main():
     latency_ppl_resume = ppl_estimator.resume_latency_estimation()
 
     # Create an estimator for process latency estimation
+    num_join_array = None
+    input_cardinality_array = None
+    suspension_point_array = None
+    persistence_size_array = None
 
-    latency_proc_suspend = 0
-    latency_proc_resume = 0
+    proc_estimator = ProcLatencyEstimator(RAND_WRITE_SPEED, RAND_READ_SPEED,
+                                          num_join_array, input_cardinality_array,
+                                          suspension_point_array, persistence_size_array)
+    proc_estimator.fit_curve()
 
+    suspend_time = start_time
+    latency_proc_suspend = float('inf')
+    latency_proc_resume = float('inf')
+
+    while suspend_time <= te:
+        suspend_time += time_step
+        latency_proc_suspend_est = proc_estimator.suspend_latency_estimation(num_join, input_card, suspend_time)
+        if latency_proc_suspend_est < latency_proc_suspend:
+            latency_proc_suspend = latency_proc_suspend_est
+        latency_proc_resume_est = proc_estimator.resume_latency_estimation(num_join, input_card, suspend_time)
+        if latency_proc_resume_est < latency_proc_resume:
+            latency_proc_resume = latency_proc_resume_est
+    
     strategy_id = cost_model(TERM_PROB, end_time, time_duration,
                              latency_ppl_suspend, latency_ppl_resume,
                              latency_proc_suspend, latency_proc_resume) + 1
@@ -215,10 +269,6 @@ def main():
     print(f'[Python] Ratchet exited with return code: {return_code}')
 
     detach_shm_variable(shm_cost_model_flag, shm_strategy, shm_persistence_size)
-
-    '''
-    ratchet_cmd = 'python3 ./vanilla/ratchet_vanilla.py -q q1 -d vanilla/vanilla.db -df dataset/tpch/parquet-tiny -tmp tmp -s -st 0 -se 0 -sl vanilla/sum.ratchet'    
-    '''
 
 
 if __name__ == "__main__":
