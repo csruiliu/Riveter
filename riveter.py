@@ -21,6 +21,7 @@ class ProcLatencyEstimator:
                  rand_write_speed,
                  rand_read_speed,
                  num_join_array,
+                 num_groupby_array,
                  input_cardinality_array,
                  suspension_point_array,
                  persistence_size_array):
@@ -30,6 +31,7 @@ class ProcLatencyEstimator:
 
         # the data for regression
         self.num_join_array = num_join_array
+        self.num_groupby_array = num_groupby_array
         self.input_cardinality_array = input_cardinality_array
         self.suspension_point_array = suspension_point_array
 
@@ -40,24 +42,26 @@ class ProcLatencyEstimator:
         self.param = None
 
     @staticmethod
-    def func_persistence_size(para, a, b, c, d):
-        result = 1 / (a * para[0] + b * para[1] + c * para[2] + d)
+    def func_persistence_size(para, a, b, c, d, e):
+        result = 1 / (a * para[0] + b * para[1] + c * para[2] + d * para[3] + e)
         return result.ravel()
 
     def fit_curve(self):
         assert len(self.num_join_array) == len(self.input_cardinality_array) == len(self.suspension_point_array)
-        x = np.column_stack(self.num_join_array, self.input_cardinality_array, self.suspension_point_array)
+        x = np.column_stack(self.num_join_array, self.num_groupby_array, self.input_cardinality_array,
+                            self.suspension_point_array)
         y = self.persistence_size_array
         self.param, _ = curve_fit(self.func_persistence_size, x, y)
 
-    def persistence_size_estimation(self, num_join, input_card, suspension_point):
-        return num_join * self.param[0] + input_card * self.param[1] + suspension_point * self.param[2]
+    def persist_size_estimation(self, num_join, num_groupby, input_card, suspension_point):
+        return (num_join * self.param[0] + num_groupby * self.param[1] + input_card * self.param[2]
+                + suspension_point * self.param[2])
 
-    def suspend_latency_estimation(self, num_join, input_card, suspension_point):
-        return self.persistence_size_estimation(num_join, input_card, suspension_point) / self.rand_write_speed
+    def suspend_latency_estimation(self, num_join, num_groupby, input_card, suspension_point):
+        return self.persist_size_estimation(num_join, num_groupby, input_card, suspension_point) / self.rand_write_speed
 
-    def resume_latency_estimation(self, num_join, input_card, suspension_point):
-        return self.persistence_size_estimation(num_join, input_card, suspension_point) / self.rand_read_speed
+    def resume_latency_estimation(self, num_join, num_groupby, input_card, suspension_point):
+        return self.persist_size_estimation(num_join, num_groupby, input_card, suspension_point) / self.rand_read_speed
 
 
 class PipelineLatencyEstimator:
@@ -119,6 +123,9 @@ def assemble_execution_cmd():
     parser.add_argument("-nj", "--number_join", type=int, action="store",
                         help="indicate the number of join operator in a query plan")
 
+    parser.add_argument("-ng", "--number_groupby", type=int, action="store",
+                        help="indicate the cardinality of input dataset")
+
     parser.add_argument("-ic", "--input_cardinality", type=int, action="store",
                         help="indicate the cardinality of input dataset")
 
@@ -132,6 +139,7 @@ def assemble_execution_cmd():
     te = args.termination_end
     time_step = args.time_unit
     num_join = args.number_join
+    num_groupby = args.number_groupby
     input_card = args.input_cardinality
 
     benchmark_arg = f"{benchmark}/ratchet_{benchmark}.py"
@@ -142,7 +150,7 @@ def assemble_execution_cmd():
 
     ratchet_cmd = f"python3 {benchmark_arg} -q {qid} -d {db_arg} -df {data_folder} -s -sl {sloc}"
 
-    return ratchet_cmd, ts, te, time_step, num_join, input_card
+    return ratchet_cmd, ts, te, time_step, num_join, num_groupby, input_card
 
 
 def get_shm_variable():
@@ -185,8 +193,8 @@ def cost_model(pt, end_time, current_time,
     return np.where(cost_list == np.min(cost_list))[0]
 
 
-def func_persistence_size(x, a, b, c, d):
-    r = a * x[0] + b * x[1] + c * x[2] + d
+def func_persistence_size(x, a, b, c, d, e):
+    r = a * x[0] + b * x[1] + c * x[2] + d * x[3] + e
     return r.ravel()
 
 
@@ -198,7 +206,7 @@ def main():
     start_time = time.perf_counter()
 
     # Get the execution command, termination window start and end
-    ratchet_cmd, ts, te, time_step, num_join, input_card = assemble_execution_cmd()
+    ratchet_cmd, ts, te, time_step, num_join, num_groupby, input_card = assemble_execution_cmd()
 
     # Execute the query through subprocess
     ratchet_proc = subprocess.Popen([ratchet_cmd], shell=True)
@@ -233,10 +241,12 @@ def main():
     input_cardinality_array = None
     suspension_point_array = None
     persistence_size_array = None
+    num_groupby_array = None
 
     proc_estimator = ProcLatencyEstimator(RAND_WRITE_SPEED, RAND_READ_SPEED,
-                                          num_join_array, input_cardinality_array,
-                                          suspension_point_array, persistence_size_array)
+                                          num_join_array, num_groupby_array,
+                                          input_cardinality_array, suspension_point_array,
+                                          persistence_size_array)
     proc_estimator.fit_curve()
 
     suspend_time = start_time
