@@ -114,7 +114,13 @@ def assemble_execution_cmd():
                         help="indicate the starting point of termination time window")
 
     parser.add_argument("-tu", "--time_unit", type=int, action="store",
-                        help="indicate the time unit for moving forward when estimating latency for proc-level ")
+                        help="indicate the time unit for moving forward when estimating latency for proc-level")
+
+    parser.add_argument("-nj", "--number_join", type=int, action="store",
+                        help="indicate the number of join operator in a query plan")
+
+    parser.add_argument("-ic", "--input_cardinality", type=int, action="store",
+                        help="indicate the cardinality of input dataset")
 
     args = parser.parse_args()
 
@@ -125,6 +131,8 @@ def assemble_execution_cmd():
     ts = args.termination_start
     te = args.termination_end
     time_step = args.time_unit
+    num_join = args.number_join
+    input_card = args.input_cardinality
 
     benchmark_arg = f"{benchmark}/ratchet_{benchmark}.py"
     if args.database is None:
@@ -134,7 +142,7 @@ def assemble_execution_cmd():
 
     ratchet_cmd = f"python3 {benchmark_arg} -q {qid} -d {db_arg} -df {data_folder} -s -sl {sloc}"
 
-    return ratchet_cmd, ts, te, time_step
+    return ratchet_cmd, ts, te, time_step, num_join, input_card
 
 
 def get_shm_variable():
@@ -190,7 +198,7 @@ def main():
     start_time = time.perf_counter()
 
     # Get the execution command, termination window start and end
-    ratchet_cmd, ts, te, time_step = assemble_execution_cmd()
+    ratchet_cmd, ts, te, time_step, num_join, input_card = assemble_execution_cmd()
 
     # Execute the query through subprocess
     ratchet_proc = subprocess.Popen([ratchet_cmd], shell=True)
@@ -243,7 +251,7 @@ def main():
         latency_proc_resume_est = proc_estimator.resume_latency_estimation(num_join, input_card, suspend_time)
         if latency_proc_resume_est < latency_proc_resume:
             latency_proc_resume = latency_proc_resume_est
-    
+
     strategy_id = cost_model(TERM_PROB, end_time, time_duration,
                              latency_ppl_suspend, latency_ppl_resume,
                              latency_proc_suspend, latency_proc_resume) + 1
