@@ -4,7 +4,7 @@ help_func() {
     echo "Usage:"
     echo "criu_tpch_perf.sh [-q QID] [-d DATABASE] [-f DATA_FILE] [-t THREAD] [-s STOP_TIME] [-l LOOP]"
     echo "Description:"
-    echo "QID, query id of ratchet-duckdb, defined in ./ratchet/demo.py, such as join-4"
+    echo "QID, query id for execution"
     echo "DATABASE, the database location, such as demo.db or ':memory:'"
     echo "DATA_FILE, the dataset for running the benchmark, such as 'tpch/dataset/parquet/sf10'"
     echo "THREAD, the number of running threads"
@@ -27,8 +27,8 @@ do
     esac
 done
 
-criu_cmd=/usr/lib/criu/criu-3.17.1/criu/criu
-ckpt_path=/home/ruiliu/Develop/ratchet-duckdb/ratchet/criu/criu-ckpt
+criu_cmd=/opt/criu/sbin/criu
+ckpt_path=./criu-ckpt
 sum_time=0.0
 checkpoint_sum_time=0.0
 itr=1
@@ -41,7 +41,7 @@ do
 
     start_time=$(date +%s.%3N)
     # cargo run --release --bin tpch -- benchmark --query "$QID" --batch-size "$BATCH_SIZE" --path "$DATASET_PATH" --debug &
-    python3 demo.py -q "$QID" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" &
+    python3 ../tpch/ratchet_tpch.py -q "$QID" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp tmp&
     PID=$!
     # PID=$(ps -ef | grep "target/release/tpch benchmark" | grep -v grep | awk '{print $2}')
 
