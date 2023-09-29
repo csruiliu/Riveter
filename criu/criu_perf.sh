@@ -27,7 +27,7 @@ do
     esac
 done
 
-criu_cmd=/opt/criu/sbin/criu
+criu_cmd=/usr/lib/criu/criu-3.17.1/criu/criu
 ckpt_path=./criu-ckpt
 sum_time=0.0
 checkpoint_sum_time=0.0
