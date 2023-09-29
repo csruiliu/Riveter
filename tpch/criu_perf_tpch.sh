@@ -2,6 +2,8 @@
 
 SF=1
 THREAD=1
+# suspension point (percent of the overall execution time, 0-100)
+SP=50
 TMP="tmp"
 DATA_FILE="../dataset/tpch/parquet-sf$SF"
 CRIU_CMD=/opt/criu/sbin/criu
@@ -31,14 +33,9 @@ for qid in "${queries[@]}"; do
 
   # get the total execution time and set the suspension points
   exec_time=$(echo "scale=3; $(tail -n 1 "init_$qid.out")" | bc)
-  echo $exec_time
-  sp30=$(echo "scale=3; $exec_time * 0.3" | bc)
-  sp60=$(echo "scale=3; $exec_time * 0.6" | bc)
-  sp90=$(echo "scale=3; $exec_time * 0.9" | bc)
-
-  echo "30% Suspension Point: $sp30"
-  echo "60% Suspension Point: $sp60"
-  echo "90% Suspension Point: $sp90"
+  echo "$exec_time"
+  st=$(echo "scale=3; $exec_time * $SP / 100" | bc)
+  echo "Suspension Time: $st"
 
   echo "== Cleaning cache =="
   sudo sysctl -w vm.drop_caches=1
@@ -47,23 +44,23 @@ for qid in "${queries[@]}"; do
   python3 ratchet_tpch.py -q "$qid" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP &
   PID=$!
 
-  sleep "$sp30"
-  echo "== Suspend Job at SP30 =="
+  sleep "$st"
+  echo "== Suspend Job at SP$SP =="
 
   # checkpoint process into disk
   checkpoint_start_time=$(date +%s.%3N)
 
-  if [ -d "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30" ]; then
-    echo "Removing and Creating $CKPT_PATH/ckpt_sf${SF}_${qid}_sp30 folder."
-    rm -rf "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30"
-    mkdir "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30"
+  if [ -d "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}" ]; then
+    echo "Removing and Creating $CKPT_PATH/ckpt_sf${SF}_${qid}_${SP} folder."
+    rm -rf "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}"
+    mkdir "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}"
   else
-    echo "Creating $CKPT_PATH/ckpt_sf${SF}_${qid}_sp30 folder."
-    mkdir "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30"
+    echo "Creating $CKPT_PATH/ckpt_sf${SF}_${qid}_${SP} folder."
+    mkdir "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}"
   fi
 
-  sudo "$CRIU_CMD" dump -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30" -t "${PID}" --file-locks --shell-job
-  echo "Dumping to $CKPT_PATH/ckpt_sf${SF}_${qid}_sp30"
+  sudo "$CRIU_CMD" dump -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}" -t "${PID}" --file-locks --shell-job
+  echo "Dumping to $CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}"
 
   # force data sync between buffer and disk
   sync
@@ -75,13 +72,13 @@ for qid in "${queries[@]}"; do
   # clean page cache
   sudo sysctl -w vm.drop_caches=1
 
-  echo "== Resume Job at SP30 =="
-  echo "Restoring from $CKPT_PATH/ckpt_sf${SF}_${qid}_sp30"
+  echo "== Resume Job at ${SP} =="
+  echo "Restoring from $CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}"
 
   # restore the process from disk and print out final results
-  output=$(sudo "$CRIU_CMD" restore -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30" --shell-job)
+  output=$(sudo "$CRIU_CMD" restore -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}" --shell-job)
   echo "$output"
-  # sudo "$CRIU_CMD" restore -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30" --file-locks --shell-job
+  # sudo "$CRIU_CMD" restore -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}" --file-locks --shell-job
 
   end_time=$(date +%s.%3N)
 
@@ -95,11 +92,11 @@ for qid in "${queries[@]}"; do
     rm "$DATABASE"
   fi
 
-  ckpt_size=$(du -sh "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30")
+  ckpt_size=$(du -sh "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}")
   eval "echo Size of CKPT by CRIU: $ckpt_size"
 
-  if [ -d "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30" ]; then
-    echo "Removing $CKPT_PATH/ckpt_sf${SF}_${qid}_sp30 folder."
-    rm -rf "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp30"
+  if [ -d "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}" ]; then
+    echo "Removing $CKPT_PATH/ckpt_sf${SF}_${qid}_${SP} folder."
+    rm -rf "$CKPT_PATH/ckpt_sf${SF}_${qid}_${SP}"
   fi
 done
