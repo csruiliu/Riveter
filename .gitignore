@@ -1,3 +1,6 @@
+# Checkpointed files from CRIU
+**/criu-ckpt
+
 # Output files
 *.out
 
