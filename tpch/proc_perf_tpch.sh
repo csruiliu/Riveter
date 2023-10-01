@@ -22,7 +22,7 @@ fi
 
 # run a query for ingest the data
 echo "Ingesting datasets..."
-nohup python3 ratchet_tpch.py -q "q1" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP > "init_q1.out" 2>&1
+nohup python3 ratchet_tpch.py -q "q2" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP > "init_q2.out" 2>&1
 
 for qid in "${queries[@]}"; do
   echo -e "\n########################"

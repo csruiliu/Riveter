@@ -1,9 +1,7 @@
 #!/bin/bash
 
-SF=1
+SF=10
 THREAD=1
-# suspension point (percent of the overall execution time, 0-100)
-SP=50
 TMP="tmp"
 DATABASE="tpch-sf$SF.db"
 DATA_FILE="../dataset/tpch/parquet-sf$SF"
@@ -11,8 +9,34 @@ CRIU_CMD=/opt/criu/sbin/criu
 CKPT_PATH=./criu-ckpt
 PID=0
 
-# queries=("q1" "q2")
-queries=("q1" "q2" "q3" "q4" "q5" "q6" "q7" "q8" "q9" "q10" "q11" "q12" "q13" "q14" "q15" "q16" "q17" "q18" "q19" "q20" "q21" "q22")
+# sf-10
+#exec_times=(7.4 0.85 4.4 4 4.5 3.3 9.3 4.4 12.8 5.9 0.44 2.3 5.1 3.5 5.2 0.9 8.5 14.4 6.2 4.7 10.5 1.7)
+
+# sf-50
+#exec_times=(44.3 4.6 27 23.9 26.5 21.6 54 29.1 69.8 35.7 5.4 17.5 28.4 21.7 32.1 7.7 50.4 87.8 38.65 28.23 73.9 9.8)
+
+# sf-100
+#exec_times=(107.1 9.3 67.8 68.6 64.6 63.6 141 265.1 361.4 250.5 30.7 248.2 86.5 275.3 245.8 24.4 412.2 311.7 388.4 269.9 353.3 61.6)
+
+# test
+exec_times=(7.4)
+
+# suspension point (percent of the overall execution time 0-100)
+
+# sf-10
+#sps=(50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50)
+
+# sf-50
+#sps=(50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50)
+
+# sf-100
+#sps=(50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50 50)
+
+# test
+sps=(50)
+
+queries=("q1")
+# queries=("q1" "q2" "q3" "q4" "q5" "q6" "q7" "q8" "q9" "q10" "q11" "q12" "q13" "q14" "q15" "q16" "q17" "q18" "q19" "q20" "q21" "q22")
 
 # remove database if exists
 if [ -f "$DATABASE" ]; then
@@ -20,79 +44,23 @@ if [ -f "$DATABASE" ]; then
   rm "$DATABASE"
 fi
 
-# run a query for ingest the data
+# run a ligh query for ingest the data
 echo "Ingesting datasets..."
-nohup python3 ratchet_tpch.py -q "q1" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP > "init_q1.out" 2>&1
+nohup python3 ratchet_tpch.py -q "q2" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP > "init_q2.out" 2>&1
 
-for qid in "${queries[@]}"; do
+for ((i=0 ; i < ${#queries[@]} ; ++i)); do
+  qid=${queries[i]}
+  et=${exec_times[i]}
+  sp=${sps[i]}
+
   echo -e "\n########################"
   echo "# Query $qid"
   echo "########################"
 
-  # run an initial query
-  nohup python3 ratchet_tpch.py -q "$qid" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP > "init_$qid.out" 2>&1
-
-  # get the total execution time and set the suspension points
-  exec_time=$(echo "scale=3; $(tail -n 1 "init_$qid.out")" | bc)
-  echo "$exec_time"
-  st=$(echo "scale=3; $exec_time * $SP / 100" | bc)
+  st=$(echo "scale=3; $et * $sp / 100" | bc)
   echo "Suspension Time: $st"
 
-  echo "== Cleaning cache =="
-  sudo sysctl -w vm.drop_caches=1
-
-  start_time=$(date +%s.%3N)
-  python3 ratchet_tpch.py -q "$qid" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP &
-  PID=$!
-
-  sleep "$st"
-  echo "== Suspend Job at SP$SP =="
-
-  # checkpoint process into disk
-  checkpoint_start_time=$(date +%s.%3N)
-
-  if [ -d "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}" ]; then
-    echo "Removing and Creating $CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP} folder."
-    rm -rf "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}"
-    mkdir "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}"
-  else
-    echo "Creating $CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP} folder."
-    mkdir "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}"
-  fi
-
-  sudo "$CRIU_CMD" dump -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}" -t "${PID}" --file-locks --shell-job
-  echo "Dumping to $CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}"
-
-  # force data sync between buffer and disk
-  sync
-
-  checkpoint_end_time=$(date +%s.%3N)
-  checkpoint_time=$(echo "scale=3; $checkpoint_end_time - $checkpoint_start_time" | bc)
-  echo "Checkpoint Time: $checkpoint_time"
-
-  # clean page cache
-  sudo sysctl -w vm.drop_caches=1
-
-  echo "== Resume Job at ${SP} =="
-  echo "Restoring from $CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}"
-
-  # restore the process from disk and print out final results
-  output=$(sudo "$CRIU_CMD" restore -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}" --file-locks --shell-job)
-  echo "$output"
-  # sudo "$CRIU_CMD" restore -D "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}" --file-locks --shell-job
-
-  end_time=$(date +%s.%3N)
-
-  # elapsed time with millisecond resolution
-  # keep three digits after floating point.
-  elapsed=$(echo "scale=3; $end_time - $start_time" | bc)
-  eval "echo Elapsed Time: $elapsed seconds"
-
-  ckpt_size=$(du -sh "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}")
-  eval "echo Size of CKPT by CRIU: $ckpt_size"
-
-  if [ -d "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}" ]; then
-    echo "Removing $CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP} folder."
-    rm -rf "$CKPT_PATH/ckpt_sf${SF}_${qid}_sp${SP}"
-  fi
+  python3 ratchet_tpch.py -q "q2" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP -s -st "$st" -se "$st" -sl "$qid.ratchet"
 done
+
+
