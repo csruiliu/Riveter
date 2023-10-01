@@ -60,7 +60,7 @@ for ((i=0 ; i < ${#queries[@]} ; ++i)); do
   st=$(echo "scale=3; $et * $sp / 100" | bc)
   echo "Suspension Time: $st"
 
-  python3 ratchet_tpch.py -q "q2" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP -s -st "$st" -se "$st" -sl "$qid.ratchet"
+  python3 ratchet_tpch.py -q "$qid" -d "$DATABASE" -df "$DATA_FILE" -td "$THREAD" -tmp $TMP -s -st "$st" -se "$st" -sl "$qid.ratchet"
 done
 
 
