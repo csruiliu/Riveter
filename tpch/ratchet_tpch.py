@@ -10,8 +10,8 @@ def main():
     pd.set_option('display.float_format', '{:.1f}'.format)
     parser = argparse.ArgumentParser()
     parser.add_argument("-q", "--query", type=str, action="store", required=True,
-                        choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 
-                                 'q12', 'q13', 'q14', 'q15', 'q16', 'q17', 'q18', 'q19', 'q20', 'q21', 'q22'], 
+                        choices=['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11',
+                                 'q12', 'q13', 'q14', 'q15', 'q16', 'q17', 'q18', 'q19', 'q20', 'q21', 'q22'],
                         help="indicate the query id")
     parser.add_argument("-d", "--database", type=str, action="store", required=True, default="memory",
                         help="indicate the database location, memory or other location")
@@ -109,7 +109,8 @@ def main():
 
     print(results)
     end = time.perf_counter()
-    print("Total Runtime: {}".format(end - start))
+    # print("Total Runtime: {}".format(end - start))
+    print("{}".format(end - start))
     db_conn.close()
 
 
