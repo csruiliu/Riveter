@@ -71,6 +71,7 @@ def demo_proc_latency_estimation():
                                input_card_list, suspension_point_list, persist_size_list)
     ple.fit_curve()
 
+    # features for estimation
     input_num_join = 1
     input_num_groupby = 2
     input_cardinality = 75100030
@@ -134,9 +135,6 @@ def demo_e2e():
         db_arg = f"{benchmark}/{benchmark}.db"
     else:
         db_arg = f"{benchmark}/{args.database}.db"
-
-    # Get start time point
-    e2e_start_time = time.perf_counter()
 
     ratchet_cmd = f"python3 {benchmark_arg} -q {qid} -d {db_arg} -df {data_folder} -s -sl {sloc}"
 
@@ -268,7 +266,7 @@ def main():
     pd.set_option('display.float_format', '{:.1f}'.format)
 
     # Demo for Estimating Latency of Process-level Strategy
-    demo_proc_latency_estimation()
+    # demo_proc_latency_estimation()
 
     # Demo for End-to-End Pipeline
     demo_e2e()
