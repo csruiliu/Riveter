@@ -1,15 +1,12 @@
 # Riveter
 
-A Resource-adaptive Query Suspension and Resumption System. It supports pipeline-level and process-level query suspension and resumption. 
+An adaptive query suspension and resumption framework. It supports redo, pipeline-level, process-level query suspension and resumption strategy. 
 
-## CRIU
+## Datasets
 
-We also exploit `CRIU` to benchmark the performance of suspending and resuming queries at the process level. More details can be found [here](criu/README.md).
+We use TPC-H and TPC-DS benchmark to generate datasets. 
 
-
-## Experiments
-
-### Vanilla and TPC-H
+### TPC-H Dataset ###
 
 First, generating the original tables (`tbl` format) using TPC-H tools, and simply running `duckdb_tpch_data.py` can convert the table files to `parquet` or `csv` format using the following command,
 ```bash
@@ -21,63 +18,16 @@ You can move the converted data to any folder you want.
 
 We have several datasets:
 
-+ TCP-H SF50: `dataset/tpch/tbl-sf50`, `dataset/tpch/parquet-sf50`
-+ TCP-H SF10: `dataset/tpch/tbl-sf10`, `dataset/tpch/parquet-sf10`
-+ TCP-H SF1: `dataset/tpch/tbl-sf1`, `dataset/tpch/parquet-sf1`
-+ TCP-H Small (SF-0.1): `dataset/tpch/tbl-small`, `dataset/tpch/parquet-small`
-+ TCP-H Tiny (SF-0.01): `dataset/tpch/tbl-tiny`, `dataset/tpch/parquet-tiny`
++ TPC-H SF-0.01 (Tiny): `dataset/tpch/tbl-tiny`, `dataset/tpch/parquet-tiny`
++ TPC-H SF-0.1 (Small): `dataset/tpch/tbl-small`, `dataset/tpch/parquet-small`
++ TPC-H SF1: `dataset/tpch/tbl-sf1`, `dataset/tpch/parquet-sf1`
++ TPC-H SF10: `dataset/tpch/tbl-sf10`, `dataset/tpch/parquet-sf10`
++ TPC-H SF50: `dataset/tpch/tbl-sf50`, `dataset/tpch/parquet-sf50`
++ TPC-H SF100: `dataset/tpch/tbl-sf100`, `dataset/tpch/parquet-sf100`
 
-We have two sets of queries, vanilla and tpc-h, based on tcp-h datasets. 
+We have two sets of queries using TPC-H datasets: vanilla and tpc-h. 
 
-**Vanilla**
-
-We provide some simple queries in `vanilla/queries` for suspend and resume, which can be triggered by the following commands
-
-```bash
-# make sure in the vanilla folder
-cd vanilla
-# run q1 based on xxx.db and the dataset from parquet-tiny using 2 threads
-python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2
-
-# run q1 with suspension and serialize into single file
-python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl yyy.ratchet 
-# run q1 with resumption using a single file
-python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl yyy.ratchet 
-
-# run q1 with suspension and serialize into multiple files (will generate part-*.ratchet in demo folder)
-python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl ./ -psr
-# run q1 with resumption using multiple files (will use all part-*.ratchet in the demo folder)
-python3 ratchet_vanilla.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl ./ -psr
-```
-
-**TPC-H**
-
-We have tpch queries in `tpch/queries` for suspend and resume. `ratchet_tpch.py` will trigger the original TPC-H queries from q1 to q22. 
-
-```bash
-# make sure in the tpch folder
-cd tpch
-# run q1 based on xxx.db and the dataset from parquet-tiny using 2 threads
-python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2
-
-# run q1 with suspension and serialize into single file
-python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl yyy.ratchet 
-# run q1 with resumption using a single file
-python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl yyy.ratchet 
-
-# run q1 with suspension and serialize into multiple files (will generate part-*.ratchet in demo folder)
-python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -s -st 0 -se 0 -sl ./ -psr
-# run q1 with resumption using multiple files (will use all part-*.ratchet in the demo folder)
-python3 ratchet_tpch.py -q q1 -d xxx.db -df ../dataset/tpch/parquet-tiny -td 2 -r -rl ./ -psr
-```
-
-The above command will run `q1` in TPC-H based on the data from `../dataset/tpch/parquet-tiny` using `1` thread.
-
-The TPC-H benchmark is mostly used for functionality test.
-
-### TPC-DS
-
-We have tpch queries in `tpcds/queries` for suspend and resume. `ratchet_tpcds.py` will trigger the original TPC-DS queries from q1 to q99. 
+### TPC-DS Dataset ###
 
 First, generating the original tables (`dat` format) using TPC-DS tools, and simply running `duckdb_tpcds_data.py` can convert the table files to `parquet` or `csv` format using the following command,
 ```bash
@@ -87,19 +37,52 @@ python3 duckdb_tpcds_data.py -d ../dataset/dat-sf1 -f parquet -rgs 10000
 
 We have several datasets:
 
-TCP-DS SF1: `dataset/tpcds/dat-sf1`, `dataset/tpcds/parquet-sf1`
++ TPC-DS SF-0.01 (Tiny): `dataset/tpcds/dat-tiny`, `dataset/tpcds/parquet-tiny`
++ TPC-DS SF-0.1 (Small): `dataset/tpcds/dat-small`, `dataset/tpcds/parquet-small`
++ TPC-DS SF1: `dataset/tpcds/dat-sf1`, `dataset/tpcds/parquet-sf1`
++ TPC-DS SF10: `dataset/tpcds/dat-sf10`, `dataset/tpcds/parquet-sf10`
++ TPC-DS SF50: `dataset/tpcds/dat-sf50`, `dataset/tpcds/parquet-sf50`
++ TPC-DS SF100: `dataset/tpcds/dat-sf100`, `dataset/tpcds/parquet-sf100`
 
-`ratchet_tpcds.py` will trigger the original TPC-DS queries from q1 to q99 (stored in queries folder). For example,
+
+## Experiments
+
+### Benchmark for Pipeline-level Suspension and Resumption
+
 ```bash
-python3 ratchet_tpcds.py -q q1 -d ../dataset/tpcds/parquet-sf1 -td 1
-```
-The above command will run `q1` in TPC-H based on the data from `../dataset/tpcds/parquet-sf1` using `1` thread.
+# choose the benchmark: tpch, or tpcds
+bm=[tpch, tpcds]
+# make sure in <bm> folder
+cd <bm>
+# the queries should be in <bm/queries>, the name the argument for "-q" option
+# for example, q1-q22 in tpch, and q1-q99 in tpcds
+# run q1 based on xxx.db and the dataset from parquet-tiny using 2 threads
+python3 ratchet_<bm>.py -q q1 -d xxx.db -df ../dataset/<bm>/parquet-sf10 -td 2
 
-The suspension and resumption commands can follow the above ones in the Vanilla and TPC-H.    
+# run q1 with a suspension point determined by time window [st, se] with uniform distribution, and serialize into single file
+python3 ratchet_<bm>.py -q q1 -d xxx.db -df ../dataset/<bm>/parquet-sf10 -td 2 -s -st 0 -se 0 -sl yyy.ratchet 
+# run q1 with resumption using a single file
+python3 ratchet_<bm>.py -q q1 -d xxx.db -df ../dataset/<bm>/parquet-sf10 -td 2 -r -rl yyy.ratchet 
+
+# run q1 with a suspension point determined by time window [st, se] with uniform distribution
+# and serialize into multiple files (will generate part-*.ratchet in demo folder)
+python3 ratchet_<bm>.py -q q1 -d xxx.db -df ../dataset/<bm>/parquet-sf10 -td 2 -s -st 0 -se 0 -sl ./ -psr
+# run q1 with resumption using multiple files (will use all part-*.ratchet in the demo folder)
+python3 ratchet_<bm>.py -q q1 -d xxx.db -df ../dataset/<bm>/parquet-sf10 -td 2 -r -rl ./ -psr
+```
+
+### Benchmark for Process-level Suspension and Resumption 
+
+We also benchmark the performance of suspending and resuming queries at the process level. More details can be found [here](criu/README.md).
+
+### Benchmark for Suspension and Resumption with Cost Model
+
+
+
 
 ## MISC
 
-Some commands to get a better understand of your disk or SSD
+### Ubuntu Disk Commands
 
 ```bash
 # Test the speed of cached read and buffered write
@@ -145,3 +128,4 @@ nvme0n1       259:0    0 465.8G  0 disk
 └─nvme0n1p4   259:4    0     4G  0 part  
   └─cryptswap 253:0    0     4G  0 crypt [SWAP]
 ```
+
