@@ -82,7 +82,7 @@ def main():
     # Create or Update TPC-H Datasets
     for t in tpch_table_names:
         if update_table:
-            db_conn.execute(f"DROP TABLE {t};")
+            db_conn.execute(f"DROP TABLE IF EXISTS {t};")
         db_conn.execute(f"CREATE TABLE IF NOT EXISTS {t} AS SELECT * FROM read_parquet('{data_folder}/{t}.parquet');")
 
     # start the query execution
