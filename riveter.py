@@ -283,7 +283,6 @@ def demo_e2e():
     proc_suspension_probe = current_exec_time
     proc_suspension_point = current_exec_time
     while proc_suspension_probe <= term_end:
-
         latency_proc_suspend_est = proc_estimator.suspend_latency_estimation(num_join, num_groupby,
                                                                              input_card, proc_suspension_probe)
 
@@ -311,10 +310,6 @@ def demo_e2e():
     # 3: Pipeline-level Strategy
     print(f"[Python] Select Strategy: {strategy_id}")
 
-    proc_suspend_cmd = f"sudo {CRIU_CMD} dump -D {CKPT_PATH}/ckpt_{qid}_{ratchet_proc.pid} -t {ratchet_proc.pid} --file-locks --shell-job"
-    # Trigger process-level suspension through subprocess
-    proc_suspend = subprocess.Popen([proc_suspend_cmd], shell=True)
-
     cost_model_flag_new = 0
     cost_model_flag_to_send = cost_model_flag_new.to_bytes(ctypes.sizeof(ctypes.c_uint16), byteorder='little')
     shm_cost_model_flag.write(cost_model_flag_to_send)
@@ -323,12 +318,25 @@ def demo_e2e():
     strategy_new = strategy_id
     strategy_to_send = strategy_new.to_bytes(ctypes.sizeof(ctypes.c_uint16), byteorder='little')
     shm_strategy.write(strategy_to_send)
-    print("[Python] Using Pipeline-level Suspension")
 
-    # Wait until the process is finished
-    ratchet_proc.wait()
-    return_code = ratchet_proc.returncode
-    print(f'[Python] Ratchet exited with return code: {return_code}')
+    if strategy_id == 1:
+        print("[Python] Using Redo Suspension")
+        # Wait until the process is finished
+        ratchet_proc.wait()
+        return_code = ratchet_proc.returncode
+        print(f'[Python] Ratchet exited with return code: {return_code}')
+    elif strategy_id == 2:
+        print("[Python] Using Pipeline-level Suspension")
+        # Wait until the process is finished
+        ratchet_proc.wait()
+        return_code = ratchet_proc.returncode
+        print(f'[Python] Ratchet exited with return code: {return_code}')
+    else:
+        print("[Python] Using Process-level Suspension")
+        time.sleep(proc_suspension_point)
+        proc_suspend_cmd = f"sudo {CRIU_CMD} dump -D {CKPT_PATH}/ckpt_{qid}_{ratchet_proc.pid} -t {ratchet_proc.pid} --file-locks --shell-job"
+        # Trigger process-level suspension through subprocess
+        proc_suspend = subprocess.Popen([proc_suspend_cmd], shell=True)
 
     shm_cost_model_flag.detach()
     shm_strategy.detach()
