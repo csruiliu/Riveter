@@ -1,7 +1,6 @@
 import duckdb
 import argparse
 import time
-import pandas as pd
 
 from queries import *
 
@@ -20,8 +19,6 @@ def main():
                         help="indicate the tmp folder for DuckDB, such as </tmp>")
     parser.add_argument("-td", "--thread", type=int, action="store", default=1,
                         help="indicate the number of threads in DuckDB")
-    parser.add_argument("-pl", "--persistence_location", type=str, action="store",
-                        help="indicate the persisted data or folder during suspension and resumption")
     parser.add_argument("-ut", "--update_table", action="store_true",
                         help="force to update table in database")
 
@@ -34,7 +31,11 @@ def main():
     thread = args.thread
     update_table = args.update_table
 
+    print("ssss")
+
     query = globals()[qid].query
+
+    print("zzzz")
 
     # open and connect a database
     if database == "memory":
@@ -42,16 +43,22 @@ def main():
     else:
         db_conn = duckdb.connect(database=database)
 
+    print("ccc")
+
     db_conn.execute(f"PRAGMA temp_directory='{tmp_folder}'")
     db_conn.execute(f"PRAGMA threads={thread}")
 
     tpch_table_names = ["part", "supplier", "partsupp", "customer", "orders", "lineitem", "nation", "region"]
+
+    print("aaa")
 
     # Create or Update TPC-H Datasets
     for t in tpch_table_names:
         if update_table:
             db_conn.execute(f"DROP TABLE IF EXISTS {t};")
         db_conn.execute(f"CREATE TABLE IF NOT EXISTS {t} AS SELECT * FROM read_parquet('{data_folder}/{t}.parquet');")
+
+    print("bbb")
 
     if isinstance(query, list):
         for idx, query in enumerate(query):
@@ -67,3 +74,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
